@@ -5,9 +5,26 @@ requireAuth();
 // Handle form submission
 if ($_POST) {
     try {
+        // Handle image upload
+        $imagePath = null;
+        if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+            $uploadDir = 'uploads/fuel_logs/';
+            $fileExtension = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
+            $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
+            
+            if (in_array($fileExtension, $allowedExtensions)) {
+                $fileName = 'fuel_log_' . time() . '_' . rand(1000, 9999) . '.' . $fileExtension;
+                $uploadPath = $uploadDir . $fileName;
+                
+                if (move_uploaded_file($_FILES['image']['tmp_name'], $uploadPath)) {
+                    $imagePath = $uploadPath;
+                }
+            }
+        }
+        
         $stmt = $pdo->prepare("
-            INSERT INTO fuel_logs (vehicle_id, date, mileage, fuel_quantity, cost, notes) 
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO fuel_logs (vehicle_id, date, mileage, fuel_quantity, cost, notes, order_details, image_path) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ");
         $stmt->execute([
             (int)$_POST['vehicle_id'],
@@ -15,7 +32,9 @@ if ($_POST) {
             (int)$_POST['mileage'],
             (float)$_POST['fuel_quantity'],
             (float)$_POST['cost'],
-            $_POST['notes']
+            $_POST['notes'],
+            $_POST['order_details'],
+            $imagePath
         ]);
         
         // Update vehicle mileage
@@ -65,7 +84,7 @@ try {
         <?php endif; ?>
 
         <div class="form-container">
-            <form method="POST">
+            <form method="POST" enctype="multipart/form-data">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <div class="form-group">
                         <label for="vehicle_id">Vehicle</label>
@@ -102,6 +121,17 @@ try {
                     <div class="form-group">
                         <label for="notes">Notes (Optional)</label>
                         <input type="text" id="notes" name="notes" class="form-control" placeholder="e.g., Shell Station, Regular refuel">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="order_details">Order Details</label>
+                        <textarea id="order_details" name="order_details" class="form-control" rows="3" placeholder="Enter order details, receipt information, etc."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="image">Upload Receipt/Image (Optional)</label>
+                        <input type="file" id="image" name="image" class="form-control" accept="image/*">
+                        <small class="text-muted">Accepted formats: JPG, JPEG, PNG, GIF (Max 5MB)</small>
                     </div>
                 </div>
                 

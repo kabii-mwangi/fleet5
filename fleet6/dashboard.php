@@ -205,12 +205,14 @@ $avgEfficiency = $totalFuelUsed > 0 ? round(1000 / $totalFuelUsed, 2) : 0;
                             <th>Mileage</th>
                             <th>Fuel (L)</th>
                             <th>Cost</th>
+                            <th>Order Details</th>
+                            <th>Image</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($recentLogs)): ?>
                             <tr>
-                                <td colspan="6" class="no-data">No fuel logs found</td>
+                                <td colspan="8" class="no-data">No fuel logs found</td>
                             </tr>
                         <?php else: ?>
                             <?php foreach ($recentLogs as $log): ?>
@@ -232,6 +234,26 @@ $avgEfficiency = $totalFuelUsed > 0 ? round(1000 / $totalFuelUsed, 2) : 0;
                                     <td><?php echo number_format($log['mileage']); ?> km</td>
                                     <td><?php echo number_format($log['fuel_quantity'], 1); ?>L</td>
                                     <td><?php echo formatCurrency($log['cost']); ?></td>
+                                    <td>
+                                        <?php if (!empty($log['order_details'])): ?>
+                                            <div style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?php echo htmlspecialchars($log['order_details']); ?>">
+                                                <?php echo htmlspecialchars(substr($log['order_details'], 0, 50)); ?>
+                                                <?php if (strlen($log['order_details']) > 50): ?>...<?php endif; ?>
+                                            </div>
+                                        <?php else: ?>
+                                            -
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if (!empty($log['image_path']) && file_exists($log['image_path'])): ?>
+                                            <img src="<?php echo htmlspecialchars($log['image_path']); ?>" 
+                                                 alt="Fuel Log Image" 
+                                                 style="width: 40px; height: 40px; object-fit: cover; cursor: pointer; border-radius: 4px;" 
+                                                 onclick="showDashboardImageModal('<?php echo htmlspecialchars($log['image_path']); ?>')">
+                                        <?php else: ?>
+                                            -
+                                        <?php endif; ?>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php endif; ?>
@@ -269,5 +291,21 @@ $avgEfficiency = $totalFuelUsed > 0 ? round(1000 / $totalFuelUsed, 2) : 0;
             </div>
         </div>
     </div>
+
+    <script>
+        // Show image modal for dashboard
+        function showDashboardImageModal(imagePath) {
+            const modal = document.createElement('div');
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; display: flex; align-items: center; justify-content: center;';
+            modal.onclick = function() { document.body.removeChild(modal); };
+            
+            const img = document.createElement('img');
+            img.src = imagePath;
+            img.style.cssText = 'max-width: 90%; max-height: 90%; object-fit: contain;';
+            
+            modal.appendChild(img);
+            document.body.appendChild(modal);
+        }
+    </script>
 </body>
 </html>

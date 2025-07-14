@@ -6,20 +6,30 @@
         
         <ul class="nav-menu">
             <li><a href="dashboard.php" class="nav-link">Dashboard</a></li>
-            <?php if (hasPermission('vehicles_view')): ?>
-                <li><a href="vehicles.php" class="nav-link">Vehicles</a></li>
+            
+            <!-- Vehicles Dropdown -->
+            <?php if (hasPermission('vehicles_view') || hasPermission('fuel_logs_view') || hasPermission('maintenance_view')): ?>
+                <li class="nav-dropdown">
+                    <a href="#" class="nav-link dropdown-toggle">Vehicles <span class="dropdown-arrow">▼</span></a>
+                    <ul class="dropdown-menu">
+                        <?php if (hasPermission('vehicles_view')): ?>
+                            <li><a href="vehicles.php">Vehicle Management</a></li>
+                        <?php endif; ?>
+                        <?php if (hasPermission('fuel_logs_view')): ?>
+                            <li><a href="fuel-logs.php">Fuel Logs</a></li>
+                        <?php endif; ?>
+                        <?php if (hasPermission('maintenance_view')): ?>
+                            <li><a href="maintenance.php">Maintenance</a></li>
+                        <?php endif; ?>
+                    </ul>
+                </li>
             <?php endif; ?>
-            <?php if (hasPermission('fuel_logs_view')): ?>
-                <li><a href="fuel-logs.php" class="nav-link">Fuel Logs</a></li>
-            <?php endif; ?>
+            
             <?php if (hasPermission('employees_view')): ?>
                 <li><a href="employees.php" class="nav-link">Employees</a></li>
             <?php endif; ?>
             <?php if (hasPermission('departments_view')): ?>
                 <li><a href="departments.php" class="nav-link">Departments</a></li>
-            <?php endif; ?>
-            <?php if (hasPermission('maintenance_view')): ?>
-                <li><a href="maintenance.php" class="nav-link">Maintenance</a></li>
             <?php endif; ?>
             <?php if (hasPermission('reports_view')): ?>
                 <li><a href="reports.php" class="nav-link">Reports</a></li>
@@ -63,12 +73,93 @@
     font-size: 0.75rem;
 }
 
+/* Dropdown Styles */
+.nav-dropdown {
+    position: relative;
+}
+
+.dropdown-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.dropdown-arrow {
+    font-size: 0.8rem;
+    transition: transform 0.3s ease;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    min-width: 180px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: all 0.3s ease;
+    z-index: 1000;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.nav-dropdown:hover .dropdown-menu {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.nav-dropdown:hover .dropdown-arrow {
+    transform: rotate(180deg);
+}
+
+.dropdown-menu li {
+    margin: 0;
+}
+
+.dropdown-menu a {
+    display: block;
+    padding: 12px 16px;
+    color: #333;
+    text-decoration: none;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.2s ease;
+}
+
+.dropdown-menu a:hover {
+    background-color: #f8f9fa;
+    color: #0066cc;
+}
+
+.dropdown-menu li:last-child a {
+    border-bottom: none;
+}
+
 @media (max-width: 768px) {
     .nav-user .user-info {
         align-items: center;
     }
     
     .nav-user .user-info span {
+        display: block;
+    }
+    
+    .dropdown-menu {
+        position: static;
+        opacity: 1;
+        visibility: visible;
+        transform: none;
+        box-shadow: none;
+        border: none;
+        background: transparent;
+    }
+    
+    .nav-dropdown:hover .dropdown-menu {
         display: block;
     }
 }
