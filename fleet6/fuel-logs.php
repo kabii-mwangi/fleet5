@@ -9,9 +9,26 @@ if ($_POST) {
     
     if ($action === 'add') {
         try {
+            // Handle image upload
+            $imagePath = null;
+            if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+                $uploadDir = 'uploads/fuel_logs/';
+                $fileExtension = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
+                $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
+                
+                if (in_array($fileExtension, $allowedExtensions)) {
+                    $fileName = 'fuel_log_' . time() . '_' . rand(1000, 9999) . '.' . $fileExtension;
+                    $uploadPath = $uploadDir . $fileName;
+                    
+                    if (move_uploaded_file($_FILES['image']['tmp_name'], $uploadPath)) {
+                        $imagePath = $uploadPath;
+                    }
+                }
+            }
+            
             $stmt = $pdo->prepare("
-                INSERT INTO fuel_logs (vehicle_id, date, mileage, fuel_quantity, cost, notes) 
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO fuel_logs (vehicle_id, date, mileage, fuel_quantity, cost, notes, order_details, image_path) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ");
             $stmt->execute([
                 (int)$_POST['vehicle_id'],
@@ -19,7 +36,9 @@ if ($_POST) {
                 (int)$_POST['mileage'],
                 (float)$_POST['fuel_quantity'],
                 (float)$_POST['cost'],
-                $_POST['notes']
+                $_POST['notes'],
+                $_POST['order_details'],
+                $imagePath
             ]);
             
             // Update vehicle mileage
@@ -34,9 +53,30 @@ if ($_POST) {
     
     if ($action === 'edit') {
         try {
+            // Handle image upload for edit
+            $imagePath = $_POST['existing_image_path'] ?? null;
+            if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+                $uploadDir = 'uploads/fuel_logs/';
+                $fileExtension = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
+                $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
+                
+                if (in_array($fileExtension, $allowedExtensions)) {
+                    $fileName = 'fuel_log_' . time() . '_' . rand(1000, 9999) . '.' . $fileExtension;
+                    $uploadPath = $uploadDir . $fileName;
+                    
+                    if (move_uploaded_file($_FILES['image']['tmp_name'], $uploadPath)) {
+                        // Delete old image if exists
+                        if ($imagePath && file_exists($imagePath)) {
+                            unlink($imagePath);
+                        }
+                        $imagePath = $uploadPath;
+                    }
+                }
+            }
+            
             $stmt = $pdo->prepare("
                 UPDATE fuel_logs 
-                SET vehicle_id = ?, date = ?, mileage = ?, fuel_quantity = ?, cost = ?, notes = ? 
+                SET vehicle_id = ?, date = ?, mileage = ?, fuel_quantity = ?, cost = ?, notes = ?, order_details = ?, image_path = ? 
                 WHERE id = ?
             ");
             $stmt->execute([
@@ -46,6 +86,8 @@ if ($_POST) {
                 (float)$_POST['fuel_quantity'],
                 (float)$_POST['cost'],
                 $_POST['notes'],
+                $_POST['order_details'],
+                $imagePath,
                 (int)$_POST['log_id']
             ]);
             
@@ -125,7 +167,7 @@ try {
         <div class="section">
             <h2>Add Fuel Log</h2>
             <div class="form-container">
-                <form method="POST">
+                <form method="POST" enctype="multipart/form-data">
                     <input type="hidden" name="action" value="add">
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
@@ -165,8 +207,17 @@ try {
                             <label for="notes">Notes (Optional) </label>
                             <input type="text" id="notes" name="notes" class="form-control" placeholder="e.g., Refill at Rubis">
                         </div>
-						
                         
+                        <div class="form-group">
+                            <label for="order_details">Order Details</label>
+                            <textarea id="order_details" name="order_details" class="form-control" rows="3" placeholder="Enter order details, receipt information, etc."></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="image">Upload Receipt/Image (Optional)</label>
+                            <input type="file" id="image" name="image" class="form-control" accept="image/*">
+                            <small class="text-muted">Accepted formats: JPG, JPEG, PNG, GIF (Max 5MB)</small>
+                        </div>
 
                     </div>
                     
@@ -189,6 +240,8 @@ try {
                             <th>Cost</th>
                             <th>Cost/Liter</th>
                             <th>Notes</th>
+                            <th>Order Details</th>
+                            <th>Image</th>
                             <?php if (hasPermission('fuel_logs_edit') || hasPermission('fuel_logs_delete')): ?>
                                 <th>Actions</th>
                             <?php endif; ?>
@@ -197,7 +250,7 @@ try {
                     <tbody>
                         <?php if (empty($fuelLogs)): ?>
                             <tr>
-                                <td colspan="<?php echo (hasPermission('fuel_logs_edit') || hasPermission('fuel_logs_delete')) ? '8' : '7'; ?>" class="no-data">No fuel logs found</td>
+                                <td colspan="<?php echo (hasPermission('fuel_logs_edit') || hasPermission('fuel_logs_delete')) ? '10' : '9'; ?>" class="no-data">No fuel logs found</td>
                             </tr>
                         <?php else: ?>
                             <?php foreach ($fuelLogs as $log): ?>
@@ -214,10 +267,32 @@ try {
                                     <td><?php echo formatCurrency($log['cost']); ?></td>
                                     <td><?php echo formatCurrency($log['cost'] / $log['fuel_quantity']); ?></td>
                                     <td><?php echo htmlspecialchars($log['notes'] ?: '-'); ?></td>
+                                    <td>
+                                        <?php if (!empty($log['order_details'])): ?>
+                                            <div class="order-details">
+                                                <?php echo nl2br(htmlspecialchars(substr($log['order_details'], 0, 100))); ?>
+                                                <?php if (strlen($log['order_details']) > 100): ?>
+                                                    <span class="more-details" onclick="showFullDetails('<?php echo htmlspecialchars($log['order_details'], ENT_QUOTES); ?>')">... <a href="javascript:void(0)">Show more</a></span>
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php else: ?>
+                                            -
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if (!empty($log['image_path']) && file_exists($log['image_path'])): ?>
+                                            <img src="<?php echo htmlspecialchars($log['image_path']); ?>" 
+                                                 alt="Fuel Log Image" 
+                                                 style="width: 50px; height: 50px; object-fit: cover; cursor: pointer; border-radius: 4px;" 
+                                                 onclick="showImageModal('<?php echo htmlspecialchars($log['image_path']); ?>')">
+                                        <?php else: ?>
+                                            -
+                                        <?php endif; ?>
+                                    </td>
                                     <?php if (hasPermission('fuel_logs_edit') || hasPermission('fuel_logs_delete')): ?>
                                         <td>
                                             <?php if (hasPermission('fuel_logs_edit')): ?>
-                                                <button onclick="editFuelLog(<?php echo $log['id']; ?>, <?php echo $log['vehicle_id']; ?>, '<?php echo $log['date']; ?>', <?php echo $log['mileage']; ?>, <?php echo $log['fuel_quantity']; ?>, <?php echo $log['cost']; ?>, '<?php echo htmlspecialchars($log['notes'], ENT_QUOTES); ?>')" class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; margin-right: 0.5rem;">Edit</button>
+                                                <button onclick="editFuelLog(<?php echo $log['id']; ?>, <?php echo $log['vehicle_id']; ?>, '<?php echo $log['date']; ?>', <?php echo $log['mileage']; ?>, <?php echo $log['fuel_quantity']; ?>, <?php echo $log['cost']; ?>, '<?php echo htmlspecialchars($log['notes'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($log['order_details'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($log['image_path'], ENT_QUOTES); ?>')" class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; margin-right: 0.5rem;">Edit</button>
                                             <?php endif; ?>
                                             <?php if (hasPermission('fuel_logs_delete')): ?>
                                                 <form method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this fuel log?');">
@@ -241,9 +316,10 @@ try {
     <div id="editModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
         <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 2rem; border-radius: 8px; width: 90%; max-width: 600px;">
             <h3>Edit Fuel Log</h3>
-            <form method="POST">
+            <form method="POST" enctype="multipart/form-data">
                 <input type="hidden" name="action" value="edit">
                 <input type="hidden" name="log_id" id="editLogId">
+                <input type="hidden" name="existing_image_path" id="editExistingImagePath">
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <div class="form-group">
@@ -282,6 +358,18 @@ try {
                         <label for="editNotes">Notes (Optional)</label>
                         <input type="text" id="editNotes" name="notes" class="form-control" placeholder="e.g., Shell Station, Regular refuel">
                     </div>
+                    
+                    <div class="form-group">
+                        <label for="editOrderDetails">Order Details</label>
+                        <textarea id="editOrderDetails" name="order_details" class="form-control" rows="3" placeholder="Enter order details, receipt information, etc."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editImage">Upload New Receipt/Image (Optional)</label>
+                        <input type="file" id="editImage" name="image" class="form-control" accept="image/*">
+                        <small class="text-muted">Leave empty to keep existing image</small>
+                        <div id="currentImagePreview" style="margin-top: 10px;"></div>
+                    </div>
                 </div>
                 
                 <div style="margin-top: 2rem;">
@@ -305,7 +393,7 @@ try {
             }
         });
 
-        function editFuelLog(id, vehicleId, date, mileage, fuelQuantity, cost, notes) {
+        function editFuelLog(id, vehicleId, date, mileage, fuelQuantity, cost, notes, orderDetails, imagePath) {
             document.getElementById('editLogId').value = id;
             document.getElementById('editVehicleId').value = vehicleId;
             document.getElementById('editDate').value = date;
@@ -313,6 +401,17 @@ try {
             document.getElementById('editFuelQuantity').value = fuelQuantity;
             document.getElementById('editCost').value = cost;
             document.getElementById('editNotes').value = notes;
+            document.getElementById('editOrderDetails').value = orderDetails || '';
+            document.getElementById('editExistingImagePath').value = imagePath || '';
+            
+            // Show current image preview
+            const imagePreview = document.getElementById('currentImagePreview');
+            if (imagePath) {
+                imagePreview.innerHTML = '<small>Current image:</small><br><img src="' + imagePath + '" style="width: 100px; height: 100px; object-fit: cover; border-radius: 4px;">';
+            } else {
+                imagePreview.innerHTML = '<small>No image uploaded</small>';
+            }
+            
             document.getElementById('editModal').style.display = 'block';
         }
         
@@ -326,6 +425,25 @@ try {
                 closeEditModal();
             }
         });
+        
+        // Show full order details modal
+        function showFullDetails(details) {
+            alert(details); // Simple approach - you can create a proper modal if needed
+        }
+        
+        // Show image modal
+        function showImageModal(imagePath) {
+            const modal = document.createElement('div');
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; display: flex; align-items: center; justify-content: center;';
+            modal.onclick = function() { document.body.removeChild(modal); };
+            
+            const img = document.createElement('img');
+            img.src = imagePath;
+            img.style.cssText = 'max-width: 90%; max-height: 90%; object-fit: contain;';
+            
+            modal.appendChild(img);
+            document.body.appendChild(modal);
+        }
     </script>
 </body>
 </html>
